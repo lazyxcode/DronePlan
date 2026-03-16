@@ -1,0 +1,80 @@
+# =========================
+# Rust / Cargo
+# =========================
+/target/
+Cargo.lock
+
+# =========================
+# macOS
+# =========================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# =========================
+# Xcode / Swift
+# =========================
+# Build generated
+DerivedData/
+build/
+*.xcworkspace
+!*.xcworkspace/contents.xcworkspacedata
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# Various settings
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+Package.resolved
+.swiftpm/
+
+# =========================
+# IDE / Editors
+# =========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# =========================
+# Generated Files
+# =========================
+# KMZ mission files (generated, should not be versioned)
+*.kmz
+
+# Node modules
+node_modules/
+
+# Frontend build output
+apps/desktop/dist/
+
+# Local Xcode backup files
+*.backup
+
+# =========================
+# Project-specific
+# =========================
+# Claude/AI assistant files (optional)
+.claude/
+
+# Temporary files
+*.tmp
+*.temp
+*.log

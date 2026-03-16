@@ -1,0 +1,26 @@
+[package]
+name = "droneplan-desktop"
+version = "0.1.0"
+description = "DronePlan - AI Flight Planning System"
+edition = "2021"
+
+[lib]
+name = "droneplan_desktop_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["devtools"] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Link to our core library
+droneplan-core = { path = "../../../crates/droneplan-core" }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
