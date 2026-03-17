@@ -18,13 +18,13 @@ function Get-FolderFromItem($Item) {
         return $null
     }
 
-    return $Item.GetFolder
+    return $Item.GetFolder()
 }
 
 function Find-Rc2Device($Shell, $Hint) {
     $computer = $Shell.Namespace('shell:MyComputerFolder')
     if ($null -eq $computer) {
-        throw '无法访问 Windows 设备命名空间。'
+        throw 'Cannot access the Windows device namespace.'
     }
 
     $devices = Get-Items $computer | Where-Object {
@@ -45,7 +45,7 @@ function Find-Rc2Device($Shell, $Hint) {
     }
 
     if (-not $devices -or $devices.Count -eq 0) {
-        throw '未检测到 RC 2 设备。请确认遥控器已通过 USB 连接且 Windows 已识别。'
+        throw 'RC 2 device not detected. Confirm the controller is connected over USB and visible in Windows.'
     }
 
     return $devices[0]
@@ -112,12 +112,12 @@ $deviceItem = Find-Rc2Device $shell $DeviceHint
 $deviceFolder = Get-FolderFromItem $deviceItem
 
 if ($null -eq $deviceFolder) {
-    throw '已识别到设备，但无法访问其文件夹内容。'
+    throw 'The RC 2 device was detected but its folders are not accessible.'
 }
 
 $missionFolders = @(Find-FoldersByName $deviceFolder $MissionFolderNames)
 if ($missionFolders.Count -eq 0) {
-    throw '未找到 DJI Fly 任务目录。请先在 RC 2 的 DJI Fly 中新建一个占位任务。'
+    throw 'DJI Fly mission folder not found. Create a placeholder mission in DJI Fly on RC 2 first.'
 }
 
 $candidates = @()
@@ -126,7 +126,7 @@ foreach ($folder in $missionFolders) {
 }
 
 if ($candidates.Count -eq 0) {
-    throw '未找到可覆盖的占位 .kmz 任务文件。请先在 DJI Fly 中刚创建一个占位任务。'
+    throw 'No placeholder .kmz mission file was found. Create a fresh placeholder mission in DJI Fly first.'
 }
 
 $target = $candidates |
@@ -151,4 +151,4 @@ $copyFlags = 4 + 16 + 512 + 1024
 $parentFolder.CopyHere($tempCopy, $copyFlags)
 Start-Sleep -Seconds 2
 
-Write-Output ("已同步到 RC 2: {0}" -f $targetName)
+Write-Output ("Synced to RC 2: {0}" -f $targetName)

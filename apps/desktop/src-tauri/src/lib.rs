@@ -186,7 +186,9 @@ async fn sync_to_rc2(
 #[cfg(target_os = "windows")]
 fn write_sync_script(temp_root: &Path) -> Result<PathBuf, String> {
     let script_path = temp_root.join("Sync-RC2Mission.ps1");
-    std::fs::write(&script_path, RC2_SYNC_SCRIPT)
+    let mut script_bytes = vec![0xEF, 0xBB, 0xBF];
+    script_bytes.extend_from_slice(RC2_SYNC_SCRIPT.as_bytes());
+    std::fs::write(&script_path, script_bytes)
         .map_err(|e| format!("写入同步脚本失败: {}", e))?;
     Ok(script_path)
 }
