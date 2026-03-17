@@ -59,11 +59,20 @@ Package.resolved
 # KMZ mission files (generated, should not be versioned)
 *.kmz
 
+# Tauri generated schemas / metadata
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/**/desktop-schema.json
+apps/desktop/src-tauri/**/*-schema.json
+apps/desktop/src-tauri/gen/**/Cargo.toml
+
 # Node modules
 node_modules/
 
 # Frontend build output
 apps/desktop/dist/
+
+# Desktop build caches
+apps/desktop/src-tauri/target/
 
 # Local Xcode backup files
 *.backup
