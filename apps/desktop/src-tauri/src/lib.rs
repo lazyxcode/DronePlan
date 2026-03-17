@@ -2,7 +2,7 @@
 //! Tauri backend for DronePlan desktop application
 
 use droneplan_core::{FlightPlan, Waypoint, WaypointAction, KmzGenerator};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[cfg(target_os = "windows")]
@@ -19,6 +19,14 @@ struct WaypointInput {
     speed: f64,
     #[serde(alias = "holdTime")]
     hold_time: f64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BuildInfo {
+    app_version: String,
+    build_rev: String,
+    target_os: String,
 }
 
 fn build_flight_plan(
@@ -61,6 +69,15 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
             .map_err(|e| format!("创建目录失败: {}", e))?;
     }
     Ok(())
+}
+
+#[tauri::command]
+fn build_info() -> BuildInfo {
+    BuildInfo {
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        build_rev: option_env!("DRONEPLAN_BUILD_REV").unwrap_or("unknown").to_string(),
+        target_os: std::env::consts::OS.to_string(),
+    }
 }
 
 /// Generate KMZ file and save to user-selected location
@@ -213,7 +230,12 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![generate_kmz, replace_placeholder_kmz, sync_to_rc2])
+        .invoke_handler(tauri::generate_handler![
+            build_info,
+            generate_kmz,
+            replace_placeholder_kmz,
+            sync_to_rc2
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

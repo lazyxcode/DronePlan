@@ -1,5 +1,5 @@
 // Copyright (c) 2026 acche. All rights reserved.
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { MapContainer, TileLayer, Marker, Polyline, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { invoke } from '@tauri-apps/api/core'
@@ -26,6 +26,12 @@ interface TileProvider {
     name: string
     url: string
     attribution: string
+}
+
+interface BuildInfo {
+    appVersion: string
+    buildRev: string
+    targetOs: string
 }
 
 const tileProviders: TileProvider[] = [
@@ -103,6 +109,8 @@ function App() {
     const [isSyncing, setIsSyncing] = useState(false)
     const [lastExportPath, setLastExportPath] = useState<string | null>(null)
     const [tileProviderIndex, setTileProviderIndex] = useState(0)
+    const [backendBuildInfo, setBackendBuildInfo] = useState<BuildInfo | null>(null)
+    const [buildMismatch, setBuildMismatch] = useState<string | null>(null)
     const tileFallbackLock = useRef(false)
 
     // Show toast notification
@@ -110,6 +118,57 @@ function App() {
         setToast({ message, type })
         setTimeout(() => setToast(null), 3000)
     }, [])
+
+    const formatError = useCallback((error: unknown) => {
+        if (typeof error === 'string') {
+            return error
+        }
+
+        if (error && typeof error === 'object') {
+            if ('message' in error && typeof error.message === 'string') {
+                return error.message
+            }
+
+            try {
+                return JSON.stringify(error)
+            } catch {
+                return String(error)
+            }
+        }
+
+        return String(error)
+    }, [])
+
+    useEffect(() => {
+        let cancelled = false
+
+        invoke<BuildInfo>('build_info')
+            .then((info) => {
+                if (cancelled) {
+                    return
+                }
+
+                setBackendBuildInfo(info)
+                if (info.buildRev !== __BUILD_REV__ || info.appVersion !== __APP_VERSION__) {
+                    const message = `前后端构建不一致。前端 ${__APP_VERSION__} (${__BUILD_REV__})，后端 ${info.appVersion} (${info.buildRev})。请关闭旧窗口后重新构建。`
+                    setBuildMismatch(message)
+                    showToast(message, 'error')
+                }
+            })
+            .catch((error) => {
+                if (cancelled) {
+                    return
+                }
+
+                const message = `无法读取构建信息: ${formatError(error)}`
+                setBuildMismatch(message)
+                showToast(message, 'error')
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [formatError, showToast])
 
     // Add waypoint
     const handleMapClick = useCallback((lat: number, lng: number) => {
@@ -185,11 +244,11 @@ function App() {
             setLastExportPath(result)
             showToast(`已导出: ${result}`, 'success')
         } catch (error) {
-            showToast(`导出失败: ${error}`, 'error')
+            showToast(`导出失败: ${formatError(error)}`, 'error')
         } finally {
             setIsExporting(false)
         }
-    }, [plan, showToast])
+    }, [formatError, plan, showToast])
 
     const syncToRc2 = useCallback(async () => {
         if (plan.waypoints.length < 2) {
@@ -213,11 +272,11 @@ function App() {
             })
             showToast(result, 'success')
         } catch (error) {
-            showToast(`同步失败: ${error}`, 'error')
+            showToast(`同步失败: ${formatError(error)}`, 'error')
         } finally {
             setIsSyncing(false)
         }
-    }, [plan, showToast])
+    }, [formatError, plan, showToast])
 
     const distance = calculateDistance()
     const flightTime = calculateFlightTime()
@@ -257,7 +316,16 @@ function App() {
                     <div className="callout callout-warm">
                         <div className="callout-title">当前交付边界</div>
                         <div className="callout-text">
-                            这版先解决现场交付：规划航点、导出 KMZ，或直接替换 Windows / microSD 上的占位任务文件。
+                            这版先解决现场交付：规划航点、同步到 RC 2，失败时退回导出 KMZ 走 microSD。
+                        </div>
+                    </div>
+
+                    <div className={`callout ${buildMismatch ? 'callout-danger' : ''}`}>
+                        <div className="callout-title">构建信息</div>
+                        <div className="callout-text">
+                            <div>前端: v{__APP_VERSION__} ({__BUILD_REV__})</div>
+                            <div>后端: {backendBuildInfo ? `v${backendBuildInfo.appVersion} (${backendBuildInfo.buildRev}) / ${backendBuildInfo.targetOs}` : '读取中...'}</div>
+                            {buildMismatch && <div style={{ marginTop: 8 }}>{buildMismatch}</div>}
                         </div>
                     </div>
 

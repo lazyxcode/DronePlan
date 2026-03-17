@@ -1,9 +1,30 @@
+import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+
+const packageJson = JSON.parse(
+    readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+) as { version?: string }
+
+function getBuildRevision() {
+    try {
+        return execSync('git rev-parse --short HEAD', {
+            cwd: new URL('.', import.meta.url),
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }).toString().trim()
+    } catch {
+        return 'unknown'
+    }
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
     plugins: [react()],
+    define: {
+        __APP_VERSION__: JSON.stringify(packageJson.version ?? '0.0.0'),
+        __BUILD_REV__: JSON.stringify(getBuildRevision()),
+    },
 
     // Prevent vite from obscuring rust errors
     clearScreen: false,
