@@ -195,35 +195,89 @@ fn write_sync_script(temp_root: &Path) -> Result<PathBuf, String> {
 
 #[cfg(target_os = "windows")]
 fn run_sync_script(script_path: &Path, kmz_path: &Path) -> Result<String, String> {
-    let output = std::process::Command::new("powershell.exe")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-        ])
-        .arg(script_path)
-        .args(["-SourceKmz"])
-        .arg(kmz_path)
-        .output()
-        .map_err(|e| format!("启动 Windows 同步脚本失败: {}", e))?;
+    // Write a wrapper batch file that runs the PowerShell script in a visible
+    // console window and captures the exit code back to a result file.
+    let temp_root = script_path.parent().unwrap();
+    let result_file = temp_root.join("sync_result.txt");
+    let log_file = temp_root.join("sync_log.txt");
 
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    // Build the PowerShell invocation line
+    let ps_args = format!(
+        "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{}\" -SourceKmz \"{}\"",
+        script_path.display(),
+        kmz_path.display()
+    );
 
-    if output.status.success() {
-        if stdout.is_empty() {
+    // Batch wrapper: run PS in a visible window, write exit code + output to files
+    let batch_content = format!(
+        "@echo off\r\n\
+         chcp 65001 >nul\r\n\
+         echo [DronePlan] 正在同步到 RC 2...\r\n\
+         echo.\r\n\
+         powershell.exe {ps_args} > \"{log}\" 2>&1\r\n\
+         set RC=%ERRORLEVEL%\r\n\
+         type \"{log}\"\r\n\
+         echo.\r\n\
+         if %RC%==0 (\r\n\
+             echo [OK] 同步成功\r\n\
+         ) else (\r\n\
+             echo [FAIL] 同步失败，退出码: %RC%\r\n\
+         )\r\n\
+         echo %RC% > \"{result}\"\r\n\
+         echo.\r\n\
+         echo 按任意键关闭此窗口...\r\n\
+         pause >nul\r\n",
+        ps_args = ps_args,
+        log = log_file.display(),
+        result = result_file.display(),
+    );
+
+    let batch_path = temp_root.join("run_sync.bat");
+    // Write with UTF-8 BOM so cmd.exe (after chcp 65001) handles Chinese correctly
+    let mut batch_bytes = vec![0xEF, 0xBB, 0xBF];
+    batch_bytes.extend_from_slice(batch_content.as_bytes());
+    std::fs::write(&batch_path, batch_bytes)
+        .map_err(|e| format!("写入同步批处理失败: {}", e))?;
+
+    // Launch the batch in a new visible cmd window
+    std::process::Command::new("cmd.exe")
+        .args(["/c", "start", "\"DronePlan RC2 同步\""])
+        .arg(&batch_path)
+        .spawn()
+        .map_err(|e| format!("启动同步窗口失败: {}", e))?;
+
+    // Wait for the result file (written after PS exits)
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        if result_file.exists() {
+            break;
+        }
+        if std::time::Instant::now() > deadline {
+            return Err("同步超时（60 秒内未收到结果）".to_string());
+        }
+    }
+    // Small extra wait so log file is fully flushed before we read it
+    std::thread::sleep(std::time::Duration::from_millis(300));
+
+    let exit_code_str = std::fs::read_to_string(&result_file)
+        .unwrap_or_default();
+    let exit_code: i32 = exit_code_str.trim().parse().unwrap_or(-1);
+
+    let log_text = std::fs::read_to_string(&log_file)
+        .unwrap_or_default();
+    let log_text = log_text.trim().to_string();
+
+    if exit_code == 0 {
+        if log_text.is_empty() {
             Ok("已完成 RC 2 同步".to_string())
         } else {
-            Ok(stdout)
+            Ok(log_text)
         }
-    } else if !stderr.is_empty() {
-        Err(format!("RC 2 同步失败: {}", stderr))
-    } else if !stdout.is_empty() {
-        Err(format!("RC 2 同步失败: {}", stdout))
+    } else if !log_text.is_empty() {
+        Err(format!("RC 2 同步失败: {}", log_text))
     } else {
-        Err("RC 2 同步失败，脚本没有返回可读信息".to_string())
+        Err(format!("RC 2 同步失败，退出码: {}", exit_code))
     }
 }
 
