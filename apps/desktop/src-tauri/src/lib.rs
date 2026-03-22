@@ -239,10 +239,15 @@ fn run_sync_script(script_path: &Path, kmz_path: &Path) -> Result<String, String
     std::fs::write(&batch_path, batch_bytes)
         .map_err(|e| format!("写入同步批处理失败: {}", e))?;
 
-    // Launch the batch in a new visible cmd window
+    // Launch the batch in a new visible cmd window.
+    // cmd /c start requires the window title to be the very first quoted token.
+    // Build the full command as a single string to avoid argument-splitting issues.
+    let start_cmd = format!(
+        "start \"DronePlan Sync\" \"{}\"",
+        batch_path.display()
+    );
     std::process::Command::new("cmd.exe")
-        .args(["/c", "start", "\"DronePlan RC2 同步\""])
-        .arg(&batch_path)
+        .args(["/c", &start_cmd])
         .spawn()
         .map_err(|e| format!("启动同步窗口失败: {}", e))?;
 
